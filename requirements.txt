@@ -1,0 +1,7 @@
+django 
+djangorestframework 
+mysqlclient
+djangorestframework-simplejwt 
+django-filter
+python-dotenv
+Pillow

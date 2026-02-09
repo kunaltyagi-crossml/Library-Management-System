@@ -37,6 +37,13 @@ class UserViewSet(viewsets.ModelViewSet):
     search_fields = ['username', 'email', 'first_name', 'last_name', 'library_card_number']
     ordering_fields = ['username', 'date_joined', 'user_type']
     ordering = ['-date_joined']
+
+    def get_permissions(self):
+        if self.action == 'create':
+            return [AllowAny()]
+        if self.action in ['me', 'update_profile', 'transactions', 'reservations']:
+            return [IsAuthenticated()]
+        return [permission() for permission in self.permission_classes]
     
     def get_serializer_class(self):
         if self.action == 'create':

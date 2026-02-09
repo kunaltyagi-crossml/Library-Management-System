@@ -35,22 +35,35 @@ export default function ProfilePage() {
   }, [user]);
 
   const fetchStats = async () => {
-    try {
-      const transactions = await transactionService.getTransactions();
-      const active = transactions.filter((t: any) => !t.return_date);
-      const overdue = transactions.filter((t: any) => t.is_overdue);
-      const totalFines = transactions.reduce((sum: number, t: any) => sum + parseFloat(t.fine_amount || 0), 0);
+  try {
+    const res = await transactionService.getTransactions();
+    const transactions = Array.isArray(res) ? res : res.results || [];
 
-      setStats({
-        activeTransactions: active.length,
-        totalTransactions: transactions.length,
-        overdueBooks: overdue.length,
-        totalFines,
-      });
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-    }
-  };
+    const active = transactions.filter((t: any) => !t.return_date);
+    const overdue = transactions.filter((t: any) => t.is_overdue);
+    const totalFines = transactions.reduce(
+      (sum: number, t: any) => sum + parseFloat(t.fine_amount || 0),
+      0
+    );
+
+    setStats({
+      activeTransactions: active.length,
+      totalTransactions: transactions.length,
+      overdueBooks: overdue.length,
+      totalFines,
+    });
+  } catch (error) {
+    console.error('Error fetching stats:', error);
+    // fallback in case of error
+    setStats({
+      activeTransactions: 0,
+      totalTransactions: 0,
+      overdueBooks: 0,
+      totalFines: 0,
+    });
+  }
+};
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -269,7 +282,11 @@ export default function ProfilePage() {
           <div className="bg-gradient-to-r from-primary-600 to-purple-600 rounded-xl shadow-sm p-6 text-white">
             <h3 className="text-lg font-bold mb-2">Available Books</h3>
             <p className="text-3xl font-bold mb-2">
-              {user.max_books_allowed - stats.activeTransactions}
+              {Math.max(
+                  0,
+                  (Number(user?.max_books_allowed) || 0) -
+                  (Number(stats?.activeTransactions) || 0)
+              )}
             </p>
             <p className="text-sm opacity-90">
               You can borrow {user.max_books_allowed - stats.activeTransactions} more book(s)

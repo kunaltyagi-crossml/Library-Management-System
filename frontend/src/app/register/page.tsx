@@ -35,8 +35,7 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const { password2, ...registerData } = formData;
-      await authService.register(registerData);
+      await authService.register(formData);
       router.push('/login?registered=true');
     } catch (err: any) {
       const errors = err.response?.data;
@@ -45,6 +44,8 @@ export default function RegisterPage() {
           .map(([key, value]: [string, any]) => `${key}: ${value}`)
           .join(', ');
         setError(errorMessages);
+      } else if (err.request) {
+        setError('Registration failed. Cannot reach the server. Is the backend running on http://localhost:8000?');
       } else {
         setError('Registration failed. Please try again.');
       }

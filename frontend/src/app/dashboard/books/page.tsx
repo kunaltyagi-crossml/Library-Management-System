@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { FiSearch, FiFilter, FiBook, FiCalendar, FiUser, FiBookOpen } from 'react-icons/fi';
-import { bookService, categoryService } from '@/lib/api';
+import { bookService, categoryService, transactionService } from '@/lib/api';
+import { useAuthStore } from '@/lib/store';
 import { formatDate, getBookStatusBadge, truncateText } from '@/lib/utils';
 
 interface Book {
@@ -21,6 +22,7 @@ interface Book {
 }
 
 export default function BooksPage() {
+  const { user } = useAuthStore();
   const [books, setBooks] = useState<Book[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +30,8 @@ export default function BooksPage() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   useEffect(() => {
     fetchBooks();
@@ -54,9 +58,10 @@ export default function BooksPage() {
   const fetchCategories = async () => {
     try {
       const data = await categoryService.getCategories();
-      setCategories(data);
+      setCategories(data.results || data || []);
     } catch (error) {
       console.error('Error fetching categories:', error);
+      setCategories([]);
     }
   };
 
@@ -66,6 +71,44 @@ export default function BooksPage() {
     }, 500);
     return () => clearTimeout(timer);
   }, [searchQuery, selectedCategory, selectedStatus]);
+
+  const handleIssueBook = async () => {
+    if (!selectedBook || !user) {
+      setActionError('Please sign in to issue a book.');
+      return;
+    }
+
+    setActionError('');
+    setActionLoading(true);
+    try {
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 14);
+
+      if (user.is_staff) {
+        await transactionService.issueBook({
+          user: user.id,
+          book: selectedBook.id,
+          due_date: dueDate.toISOString().slice(0, 10),
+        });
+      } else {
+        await transactionService.createTransaction({
+          user: user.id,
+          book: selectedBook.id,
+          due_date: dueDate.toISOString().slice(0, 10),
+        });
+      }
+
+      await fetchBooks();
+      setSelectedBook(null);
+    } catch (error: any) {
+      const message = error?.response?.data
+        ? JSON.stringify(error.response.data)
+        : 'Failed to issue book. Please try again.';
+      setActionError(message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   return (
     <div className="p-8">
@@ -219,6 +262,11 @@ export default function BooksPage() {
               </div>
 
               <div className="space-y-4">
+                {actionError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                    {actionError}
+                  </div>
+                )}
                 <div>
                   <label className="text-sm font-medium text-gray-500">Author</label>
                   <p className="text-gray-900">{selectedBook.author}</p>
@@ -273,10 +321,14 @@ export default function BooksPage() {
                 <div className="flex gap-3 pt-4">
                   {selectedBook.available_copies > 0 ? (
                     <>
-                      <button className="btn btn-primary flex-1">
-                        Issue Book
+                      <button
+                        className="btn btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={handleIssueBook}
+                        disabled={actionLoading}
+                      >
+                        {actionLoading ? 'Issuing...' : 'Issue Book'}
                       </button>
-                      <button className="btn btn-outline flex-1">
+                      <button className="btn btn-outline flex-1" disabled={actionLoading}>
                         Reserve
                       </button>
                     </>

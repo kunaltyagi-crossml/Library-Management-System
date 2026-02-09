@@ -9,7 +9,7 @@ export const api = axios.create({
   },
 });
 
-// Add token to requests
+// Request interceptor - Add JWT token
 api.interceptors.request.use(
   (config) => {
     if (typeof window !== 'undefined') {
@@ -20,12 +20,10 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Handle token refresh
+// Response interceptor - Handle token refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -48,7 +46,9 @@ api.interceptors.response.use(
       } catch (refreshError) {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
-        window.location.href = '/login';
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
         return Promise.reject(refreshError);
       }
     }
@@ -57,7 +57,7 @@ api.interceptors.response.use(
   }
 );
 
-// API Services
+// ============= AUTH SERVICES =============
 export const authService = {
   login: async (username: string, password: string) => {
     const response = await api.post('/auth/login/', { username, password });
@@ -80,6 +80,45 @@ export const authService = {
   },
 };
 
+// ============= USER SERVICES =============
+export const userService = {
+  getUsers: async (params?: any) => {
+    const response = await api.get('/users/', { params });
+    return response.data;
+  },
+
+  getUser: async (id: number) => {
+    const response = await api.get(`/users/${id}/`);
+    return response.data;
+  },
+
+  createUser: async (data: any) => {
+    const response = await api.post('/users/', data);
+    return response.data;
+  },
+
+  updateUser: async (id: number, data: any) => {
+    const response = await api.put(`/users/${id}/`, data);
+    return response.data;
+  },
+
+  deleteUser: async (id: number) => {
+    const response = await api.delete(`/users/${id}/`);
+    return response.data;
+  },
+
+  getUserTransactions: async (id: number) => {
+    const response = await api.get(`/users/${id}/transactions/`);
+    return response.data;
+  },
+
+  getUserReservations: async (id: number) => {
+    const response = await api.get(`/users/${id}/reservations/`);
+    return response.data;
+  },
+};
+
+// ============= BOOK SERVICES =============
 export const bookService = {
   getBooks: async (params?: any) => {
     const response = await api.get('/books/', { params });
@@ -88,6 +127,21 @@ export const bookService = {
 
   getBook: async (id: number) => {
     const response = await api.get(`/books/${id}/`);
+    return response.data;
+  },
+
+  createBook: async (data: any) => {
+    const response = await api.post('/books/', data);
+    return response.data;
+  },
+
+  updateBook: async (id: number, data: any) => {
+    const response = await api.put(`/books/${id}/`, data);
+    return response.data;
+  },
+
+  deleteBook: async (id: number) => {
+    const response = await api.delete(`/books/${id}/`);
     return response.data;
   },
 
@@ -105,11 +159,37 @@ export const bookService = {
     const response = await api.get('/books/statistics/');
     return response.data;
   },
+
+  getBookTransactions: async (id: number) => {
+    const response = await api.get(`/books/${id}/transactions/`);
+    return response.data;
+  },
 };
 
+// ============= CATEGORY SERVICES =============
 export const categoryService = {
   getCategories: async () => {
     const response = await api.get('/categories/');
+    return response.data;
+  },
+
+  getCategory: async (id: number) => {
+    const response = await api.get(`/categories/${id}/`);
+    return response.data;
+  },
+
+  createCategory: async (data: any) => {
+    const response = await api.post('/categories/', data);
+    return response.data;
+  },
+
+  updateCategory: async (id: number, data: any) => {
+    const response = await api.put(`/categories/${id}/`, data);
+    return response.data;
+  },
+
+  deleteCategory: async (id: number) => {
+    const response = await api.delete(`/categories/${id}/`);
     return response.data;
   },
 
@@ -119,9 +199,15 @@ export const categoryService = {
   },
 };
 
+// ============= TRANSACTION SERVICES =============
 export const transactionService = {
   getTransactions: async (params?: any) => {
     const response = await api.get('/transactions/', { params });
+    return response.data;
+  },
+
+  getTransaction: async (id: number) => {
+    const response = await api.get(`/transactions/${id}/`);
     return response.data;
   },
 
@@ -135,7 +221,12 @@ export const transactionService = {
     return response.data;
   },
 
-  issueBook: async (data: any) => {
+  createTransaction: async (data: { user: number; book: number; due_date?: string }) => {
+    const response = await api.post('/transactions/', data);
+    return response.data;
+  },
+
+  issueBook: async (data: { user: number; book: number; due_date: string }) => {
     const response = await api.post('/transactions/issue_book/', data);
     return response.data;
   },
@@ -148,15 +239,28 @@ export const transactionService = {
     return response.data;
   },
 
+  renewBook: async (transactionId: number, newDueDate: string) => {
+    const response = await api.post(`/transactions/${transactionId}/renew/`, {
+      new_due_date: newDueDate,
+    });
+    return response.data;
+  },
+
   getStatistics: async () => {
     const response = await api.get('/transactions/statistics/');
     return response.data;
   },
 };
 
+// ============= RESERVATION SERVICES =============
 export const reservationService = {
   getReservations: async (params?: any) => {
     const response = await api.get('/reservations/', { params });
+    return response.data;
+  },
+
+  getReservation: async (id: number) => {
+    const response = await api.get(`/reservations/${id}/`);
     return response.data;
   },
 

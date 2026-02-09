@@ -83,7 +83,7 @@ class Transaction(models.Model):
     @property
     def is_overdue(self):
         """Check if transaction is overdue"""
-        if self.return_date:
+        if self.return_date or not self.due_date:
             return False
         return timezone.now().date() > self.due_date
     

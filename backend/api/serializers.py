@@ -217,15 +217,16 @@ class UserProfileSerializer(serializers.ModelSerializer):
         ]
     
     def get_total_books_issued(self, obj):
-        # Assumes the Transaction model has a related_name='transactions'
-        return obj.transaction_set.count() 
+        # Query the Transaction model directly to avoid relationship naming issues
+        return Transaction.objects.filter(user=obj).count() 
     
     def get_total_books_returned(self, obj):
-        return obj.transaction_set.filter(status='returned').count()
+        # Filter by user and 'returned' status
+        return Transaction.objects.filter(user=obj, status='returned').count()
     
     def get_current_fine(self, obj):
-        # Accessing the transaction through the User object
-        unpaid_fines = obj.transaction_set.filter(fine_paid=False).aggregate(
+        # Aggregate fine_amount for this specific user
+        unpaid_fines = Transaction.objects.filter(user=obj, fine_paid=False).aggregate(
             total=Sum('fine_amount')
         )
         return unpaid_fines['total'] or 0.00

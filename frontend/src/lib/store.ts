@@ -10,6 +10,8 @@ interface User {
   user_type: string;
   status: string;
   is_staff: boolean;
+  phone_number?: string | null;
+  membership_start_date?: string | null;
   library_card_number?: string;
   max_books_allowed: number;
 }

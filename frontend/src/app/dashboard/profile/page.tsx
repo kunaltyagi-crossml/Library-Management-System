@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { FiUser, FiMail, FiPhone, FiCalendar, FiBook, FiClock, FiEdit } from 'react-icons/fi';
 import { useAuthStore } from '@/lib/store';
-import { authService, transactionService } from '@/lib/api';
+import { authService, transactionService, userService } from '@/lib/api';
 import { formatDate, getUserTypeBadge } from '@/lib/utils';
 
 export default function ProfilePage() {
@@ -36,7 +36,17 @@ export default function ProfilePage() {
 
   const fetchStats = async () => {
   try {
-    const res = await transactionService.getTransactions();
+    if (!user?.id) {
+      setStats({
+        activeTransactions: 0,
+        totalTransactions: 0,
+        overdueBooks: 0,
+        totalFines: 0,
+      });
+      return;
+    }
+
+    const res = await userService.getUserTransactions(user.id);
     const transactions = Array.isArray(res) ? res : res.results || [];
 
     const active = transactions.filter((t: any) => !t.return_date);
@@ -86,7 +96,20 @@ export default function ProfilePage() {
     );
   }
 
-  const userTypeBadge = getUserTypeBadge(user.user_type);
+  const firstName = user?.first_name?.trim() || '';
+  const lastName = user?.last_name?.trim() || '';
+  const displayName = (firstName || lastName)
+    ? `${firstName} ${lastName}`.trim()
+    : user?.username || 'User';
+  const primaryInitial = (firstName || user?.username || 'U')[0] || 'U';
+  const secondaryInitial = lastName
+    ? lastName[0]
+    : (!firstName && user?.username?.[1]) || '';
+  const userInitials = `${primaryInitial}${secondaryInitial}`;
+  const userTypeBadge = getUserTypeBadge(user.user_type || 'member');
+  const maxBooksAllowed = Number(user?.max_books_allowed) || 0;
+  const activeTransactions = Number(stats?.activeTransactions) || 0;
+  const availableBooks = Math.max(0, maxBooksAllowed - activeTransactions);
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
@@ -102,11 +125,11 @@ export default function ProfilePage() {
           <div className="flex items-start justify-between mb-6">
             <div className="flex items-center gap-4">
               <div className="w-20 h-20 bg-gradient-to-r from-primary-500 to-purple-500 rounded-full flex items-center justify-center text-white text-3xl font-bold">
-                {user.first_name[0]}{user.last_name[0]}
+                {userInitials}
               </div>
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">
-                  {user.first_name} {user.last_name}
+                  {displayName}
                 </h2>
                 <p className="text-gray-600">@{user.username}</p>
               </div>
@@ -229,7 +252,7 @@ export default function ProfilePage() {
                     <FiBook className="text-lg" />
                     Books Limit
                   </label>
-                  <p className="text-gray-900 mt-1">{user.max_books_allowed} books</p>
+                  <p className="text-gray-900 mt-1">{maxBooksAllowed} books</p>
                 </div>
               </div>
             </div>
@@ -282,14 +305,10 @@ export default function ProfilePage() {
           <div className="bg-gradient-to-r from-primary-600 to-purple-600 rounded-xl shadow-sm p-6 text-white">
             <h3 className="text-lg font-bold mb-2">Available Books</h3>
             <p className="text-3xl font-bold mb-2">
-              {Math.max(
-                  0,
-                  (Number(user?.max_books_allowed) || 0) -
-                  (Number(stats?.activeTransactions) || 0)
-              )}
+              {availableBooks}
             </p>
             <p className="text-sm opacity-90">
-              You can borrow {user.max_books_allowed - stats.activeTransactions} more book(s)
+              You can borrow {availableBooks} more book(s)
             </p>
           </div>
         </div>

@@ -6,12 +6,16 @@ import { bookService, categoryService, transactionService } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { formatDate, getBookStatusBadge, truncateText } from '@/lib/utils';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const ASSET_BASE_URL = API_BASE_URL.replace(/\/api\/?$/, '');
+
 interface Book {
   id: number;
   title: string;
   author: string;
   isbn: string;
   category: any;
+  category_name?: string;
   status: string;
   available_copies: number;
   total_copies: number;
@@ -19,6 +23,45 @@ interface Book {
   publisher: string;
   publication_date: string;
   cover_image?: string;
+}
+
+const getCoverSrc = (cover?: string) => {
+  if (!cover) return '';
+  if (cover.startsWith('http://') || cover.startsWith('https://')) return cover;
+  const needsSlash = !cover.startsWith('/');
+  return `${ASSET_BASE_URL}${needsSlash ? '/' : ''}${cover}`;
+};
+
+function BookCover({
+  coverImage,
+  title,
+  author,
+}: {
+  coverImage?: string;
+  title: string;
+  author: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  const coverSrc = getCoverSrc(coverImage);
+
+  if (!coverSrc || failed) {
+    return (
+    <div className="w-full h-full bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center px-4 text-center">
+      <FiBook className="text-3xl text-primary-400 mb-2" />
+        <p className="text-sm font-semibold text-gray-800 line-clamp-2">{title}</p>
+        <p className="text-xs text-gray-500 mt-1 line-clamp-1">{author}</p>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={coverSrc}
+      alt={title}
+      className="w-full h-full object-contain bg-white"
+      onError={() => setFailed(true)}
+    />
+  );
 }
 
 export default function BooksPage() {
@@ -195,16 +238,12 @@ export default function BooksPage() {
                 className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-lg transition-shadow cursor-pointer overflow-hidden group"
                 onClick={() => setSelectedBook(book)}
               >
-                <div className="h-48 bg-gradient-to-br from-primary-100 to-purple-100 flex items-center justify-center relative overflow-hidden">
-                  {book.cover_image ? (
-                    <img 
-                      src={book.cover_image} 
-                      alt={book.title}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <FiBook className="text-6xl text-primary-400" />
-                  )}
+                <div className="aspect-[3/4] bg-gradient-to-br from-primary-100 to-purple-100 flex items-center justify-center relative overflow-hidden">
+                  <BookCover
+                    coverImage={book.cover_image}
+                    title={book.title}
+                    author={book.author}
+                  />
                   <div className="absolute top-2 right-2">
                     <span className={`badge ${statusBadge.className}`}>
                       {statusBadge.text}
@@ -233,9 +272,9 @@ export default function BooksPage() {
                         {book.available_copies}/{book.total_copies}
                       </span>
                     </span>
-                    {book.category && (
+                    {(book.category?.name || book.category_name) && (
                       <span className="badge badge-info text-xs">
-                        {book.category.name}
+                        {book.category?.name || book.category_name}
                       </span>
                     )}
                   </div>
@@ -259,6 +298,16 @@ export default function BooksPage() {
                 >
                   ×
                 </button>
+              </div>
+
+              <div className="mb-6">
+                <div className="aspect-[3/4] max-w-xs mx-auto bg-gradient-to-br from-primary-100 to-purple-100 rounded-lg overflow-hidden shadow-sm">
+                  <BookCover
+                    coverImage={selectedBook.cover_image}
+                    title={selectedBook.title}
+                    author={selectedBook.author}
+                  />
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -290,7 +339,9 @@ export default function BooksPage() {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Category</label>
-                    <p className="text-gray-900">{selectedBook.category?.name || 'N/A'}</p>
+                    <p className="text-gray-900">
+                      {selectedBook.category?.name || selectedBook.category_name || 'N/A'}
+                    </p>
                   </div>
                 </div>
 

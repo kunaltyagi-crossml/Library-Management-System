@@ -197,12 +197,7 @@ class ReservationSerializer(serializers.ModelSerializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     """Serializer for user profile with statistics"""
-    
-    # Fields pulled from the related Profile model
-    user_type = serializers.ReadOnlyField(source='profile.role')
-    phone_number = serializers.ReadOnlyField(source='profile.phone_number')
-    max_books_allowed = serializers.ReadOnlyField(source='profile.max_books')
-    
+
     # Statistical Fields
     total_books_issued = serializers.SerializerMethodField()
     total_books_returned = serializers.SerializerMethodField()
@@ -212,7 +207,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
-            'user_type', 'phone_number', 'max_books_allowed',
+            'user_type', 'phone_number', 'library_card_number', 'max_books_allowed',
+            'membership_start_date',
             'total_books_issued', 'total_books_returned', 'current_fine'
         ]
     

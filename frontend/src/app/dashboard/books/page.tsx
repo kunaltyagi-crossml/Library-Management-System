@@ -1,10 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FiSearch, FiFilter, FiBook, FiCalendar, FiUser, FiBookOpen } from 'react-icons/fi';
-import { bookService, categoryService, transactionService } from '@/lib/api';
+import {
+  FiSearch,
+  FiBook,
+  FiUser,
+  FiBookOpen,
+  FiPlus,
+  FiTrash2,
+} from 'react-icons/fi';
+import {
+  bookService,
+  categoryService,
+  reservationService,
+  transactionService,
+} from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
-import { formatDate, getBookStatusBadge, truncateText } from '@/lib/utils';
+import { formatDate, getBookStatusBadge } from '@/lib/utils';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 const ASSET_BASE_URL = API_BASE_URL.replace(/\/api\/?$/, '');
@@ -23,6 +35,19 @@ interface Book {
   publisher: string;
   publication_date: string;
   cover_image?: string;
+}
+
+interface NewBookForm {
+  title: string;
+  author: string;
+  isbn: string;
+  publisher: string;
+  location: string;
+  call_number: string;
+  total_copies: number;
+  available_copies: number;
+  status: string;
+  category: string;
 }
 
 const getCoverSrc = (cover?: string) => {
@@ -75,6 +100,22 @@ export default function BooksPage() {
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [actionSuccess, setActionSuccess] = useState('');
+  const [showAddBookModal, setShowAddBookModal] = useState(false);
+  const [bookSubmitLoading, setBookSubmitLoading] = useState(false);
+  const [bookSubmitError, setBookSubmitError] = useState('');
+  const [newBookForm, setNewBookForm] = useState<NewBookForm>({
+    title: '',
+    author: '',
+    isbn: '',
+    publisher: '',
+    location: '',
+    call_number: '',
+    total_copies: 1,
+    available_copies: 1,
+    status: 'available',
+    category: '',
+  });
 
   useEffect(() => {
     fetchBooks();
@@ -115,6 +156,11 @@ export default function BooksPage() {
     return () => clearTimeout(timer);
   }, [searchQuery, selectedCategory, selectedStatus]);
 
+  useEffect(() => {
+    setActionError('');
+    setActionSuccess('');
+  }, [selectedBook?.id]);
+
   const handleIssueBook = async () => {
     if (!selectedBook || !user) {
       setActionError('Please sign in to issue a book.');
@@ -122,6 +168,7 @@ export default function BooksPage() {
     }
 
     setActionError('');
+    setActionSuccess('');
     setActionLoading(true);
     try {
       const dueDate = new Date();
@@ -142,6 +189,7 @@ export default function BooksPage() {
       }
 
       await fetchBooks();
+      setActionSuccess('Book issued successfully.');
       setSelectedBook(null);
     } catch (error: any) {
       const message = error?.response?.data
@@ -153,12 +201,120 @@ export default function BooksPage() {
     }
   };
 
+  const handleReserveBook = async () => {
+    if (!selectedBook || !user) {
+      setActionError('Please sign in to reserve a book.');
+      return;
+    }
+
+    setActionError('');
+    setActionSuccess('');
+    setActionLoading(true);
+    try {
+      await reservationService.createReservation(selectedBook.id);
+      setActionSuccess('Book added to your waitlist successfully.');
+      await fetchBooks();
+    } catch (error: any) {
+      const message = error?.response?.data
+        ? JSON.stringify(error.response.data)
+        : 'Failed to add to waitlist. Please try again.';
+      setActionError(message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const resetBookForm = () => {
+    setNewBookForm({
+      title: '',
+      author: '',
+      isbn: '',
+      publisher: '',
+      location: '',
+      call_number: '',
+      total_copies: 1,
+      available_copies: 1,
+      status: 'available',
+      category: '',
+    });
+    setBookSubmitError('');
+  };
+
+  const handleCreateBook = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setBookSubmitError('');
+    setBookSubmitLoading(true);
+
+    const availableCopies = Math.min(newBookForm.available_copies, newBookForm.total_copies);
+
+    try {
+      await bookService.createBook({
+        title: newBookForm.title,
+        author: newBookForm.author,
+        isbn: newBookForm.isbn,
+        publisher: newBookForm.publisher,
+        location: newBookForm.location,
+        call_number: newBookForm.call_number,
+        total_copies: newBookForm.total_copies,
+        available_copies: availableCopies,
+        status: newBookForm.status,
+        category: newBookForm.category ? Number(newBookForm.category) : null,
+      });
+
+      await fetchBooks();
+      setShowAddBookModal(false);
+      resetBookForm();
+    } catch (error: any) {
+      const message = error?.response?.data
+        ? JSON.stringify(error.response.data)
+        : 'Failed to add book.';
+      setBookSubmitError(message);
+    } finally {
+      setBookSubmitLoading(false);
+    }
+  };
+
+  const handleDeleteBook = async (bookId: number) => {
+    if (!user?.is_staff) {
+      alert('Only staff users can delete books.');
+      return;
+    }
+    if (!confirm('Delete this book from catalog?')) return;
+
+    try {
+      await bookService.deleteBook(bookId);
+      await fetchBooks();
+      if (selectedBook?.id === bookId) {
+        setSelectedBook(null);
+      }
+    } catch (error) {
+      console.error('Error deleting book:', error);
+      alert('Failed to delete book');
+    }
+  };
+
   return (
     <div className="p-8">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Book Catalog</h1>
-        <p className="text-gray-600">Browse and search our extensive book collection</p>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Book Catalog</h1>
+          <p className="text-gray-600">Browse and search our extensive book collection</p>
+        </div>
+        <button
+          className="btn btn-primary inline-flex items-center gap-2"
+          onClick={() => {
+            if (!user?.is_staff) {
+              alert('Only staff users can add books.');
+              return;
+            }
+            setShowAddBookModal(true);
+            setBookSubmitError('');
+          }}
+        >
+          <FiPlus />
+          Add Book
+        </button>
       </div>
 
       {/* Filters */}
@@ -244,6 +400,21 @@ export default function BooksPage() {
                     title={book.title}
                     author={book.author}
                   />
+                  <button
+                    type="button"
+                    className={`absolute top-2 left-2 w-8 h-8 rounded-full flex items-center justify-center shadow ${
+                      user?.is_staff
+                        ? 'bg-white/90 hover:bg-red-50 text-gray-600 hover:text-red-600'
+                        : 'bg-white/70 text-gray-400 cursor-not-allowed'
+                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteBook(book.id);
+                    }}
+                    title={user?.is_staff ? 'Delete book' : 'Only staff can delete books'}
+                  >
+                    <FiTrash2 className="text-sm" />
+                  </button>
                   <div className="absolute top-2 right-2">
                     <span className={`badge ${statusBadge.className}`}>
                       {statusBadge.text}
@@ -316,6 +487,11 @@ export default function BooksPage() {
                     {actionError}
                   </div>
                 )}
+                {actionSuccess && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
+                    {actionSuccess}
+                  </div>
+                )}
                 <div>
                   <label className="text-sm font-medium text-gray-500">Author</label>
                   <p className="text-gray-900">{selectedBook.author}</p>
@@ -379,17 +555,195 @@ export default function BooksPage() {
                       >
                         {actionLoading ? 'Issuing...' : 'Issue Book'}
                       </button>
-                      <button className="btn btn-outline flex-1" disabled={actionLoading}>
-                        Reserve
+                      <button
+                        className="btn btn-outline flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={actionLoading}
+                        onClick={handleReserveBook}
+                      >
+                        {actionLoading ? 'Please wait...' : 'Reserve'}
                       </button>
                     </>
                   ) : (
-                    <button className="btn btn-outline w-full">
-                      Add to Waitlist
+                    <button
+                      className="btn btn-outline w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={handleReserveBook}
+                      disabled={actionLoading}
+                    >
+                      {actionLoading ? 'Adding...' : 'Add to Waitlist'}
                     </button>
                   )}
                 </div>
+
+                <div className="pt-2">
+                  <button
+                    className={`btn w-full border-2 ${
+                      user?.is_staff
+                        ? 'border-red-500 text-red-600 hover:bg-red-50'
+                        : 'border-gray-300 text-gray-400 cursor-not-allowed'
+                    }`}
+                    onClick={() => handleDeleteBook(selectedBook.id)}
+                  >
+                    <FiTrash2 className="inline-block mr-2" />
+                    Delete Book
+                  </button>
+                </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddBookModal && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          onClick={() => {
+            setShowAddBookModal(false);
+            resetBookForm();
+          }}
+        >
+          <div
+            className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-8">
+              <div className="flex justify-between items-start mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Add New Book</h2>
+                <button
+                  onClick={() => {
+                    setShowAddBookModal(false);
+                    resetBookForm();
+                  }}
+                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              <form className="space-y-4" onSubmit={handleCreateBook}>
+                {bookSubmitError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                    {bookSubmitError}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <input
+                    className="input"
+                    placeholder="Title"
+                    value={newBookForm.title}
+                    onChange={(e) => setNewBookForm((prev) => ({ ...prev, title: e.target.value }))}
+                    required
+                  />
+                  <input
+                    className="input"
+                    placeholder="Author"
+                    value={newBookForm.author}
+                    onChange={(e) => setNewBookForm((prev) => ({ ...prev, author: e.target.value }))}
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <input
+                    className="input"
+                    placeholder="ISBN (13 digits)"
+                    value={newBookForm.isbn}
+                    onChange={(e) => setNewBookForm((prev) => ({ ...prev, isbn: e.target.value }))}
+                    required
+                  />
+                  <input
+                    className="input"
+                    placeholder="Publisher"
+                    value={newBookForm.publisher}
+                    onChange={(e) => setNewBookForm((prev) => ({ ...prev, publisher: e.target.value }))}
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <input
+                    className="input"
+                    placeholder="Location (Shelf)"
+                    value={newBookForm.location}
+                    onChange={(e) => setNewBookForm((prev) => ({ ...prev, location: e.target.value }))}
+                    required
+                  />
+                  <input
+                    className="input"
+                    placeholder="Call Number"
+                    value={newBookForm.call_number}
+                    onChange={(e) => setNewBookForm((prev) => ({ ...prev, call_number: e.target.value }))}
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <select
+                      className="input"
+                      value={newBookForm.category}
+                      onChange={(e) => setNewBookForm((prev) => ({ ...prev, category: e.target.value }))}
+                    >
+                      <option value="">None</option>
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={String(cat.id)}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Total Copies</label>
+                    <input
+                      className="input"
+                      type="number"
+                      min={1}
+                      value={newBookForm.total_copies}
+                      onChange={(e) =>
+                        setNewBookForm((prev) => ({
+                          ...prev,
+                          total_copies: Number(e.target.value),
+                        }))
+                      }
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Available Copies</label>
+                    <input
+                      className="input"
+                      type="number"
+                      min={0}
+                      value={newBookForm.available_copies}
+                      onChange={(e) =>
+                        setNewBookForm((prev) => ({
+                          ...prev,
+                          available_copies: Number(e.target.value),
+                        }))
+                      }
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setShowAddBookModal(false);
+                      resetBookForm();
+                    }}
+                    disabled={bookSubmitLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={bookSubmitLoading}>
+                    {bookSubmitLoading ? 'Adding...' : 'Add Book'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>

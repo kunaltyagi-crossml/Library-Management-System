@@ -5,3 +5,4 @@ djangorestframework-simplejwt
 django-filter
 python-dotenv
 Pillow
+django-cors-headers
